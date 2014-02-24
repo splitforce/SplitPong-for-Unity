@@ -31,7 +31,12 @@ public class GameState : MonoBehaviour {
 		{"aiMaxSpeed", "10"},
 		{"aiSpeed", "2"},
 		{"playerSpeed", "15"},
+		{"ballInitialVelocity","750"},
+		{"paddleWidth","180"},
+		{"ballSize","15"},
 	};
+
+	private Dictionary<string, string> config = new Dictionary<string, string> ();
 
 	public static GameState Instance;
 	void Awake() {
@@ -44,10 +49,20 @@ public class GameState : MonoBehaviour {
 		ball = GameObject.Find ("Ball").GetComponent<BallController> ();
 		aiPlayer = GameObject.Find ("PaddleAI").GetComponent<AiController> ();
 		PauseGame ();
+		config = defaultConfig;
+
+		UnitySplitForce.SFManager.Instance.initCallback = SplitforceInitialised;
+		string appID = "";
+		string appKey = "";
+		if (string.IsNullOrEmpty(appID) || string.IsNullOrEmpty(appKey)) {
+			Debug.LogError("Warning, please put your app id && key before testing sample");
+			return;
+		}
+
+		UnitySplitForce.SFManager.Init (appID, appKey);
 	}
 
 	void Start() {
-		StartCoroutine (InitialiseAssets());
 	}
 
 	void Update() {
@@ -60,26 +75,40 @@ public class GameState : MonoBehaviour {
 		}
 	}
 
-	private IEnumerator InitialiseAssets() {
+	private void InitialiseAssets() {
 		//here we do all pregame things, load assets
 		//init object pools etc
-		//simulate delay
-		float pauseEndTime = Time.realtimeSinceStartup + 1;
-		while (Time.realtimeSinceStartup < pauseEndTime)
-		{
-			yield return 0;
-		}
 
-		float aiMaxSpeed = Convert.ToSingle(defaultConfig ["aiMaxSpeed"]);
-		float aiSpeed = Convert.ToSingle(defaultConfig ["aiSpeed"]);
-		float playerSpeed = Convert.ToSingle(defaultConfig ["playerSpeed"]);
+		//since we share experiment with iOS, we need to adjust returned values
+		float ballInitialSpeed = Convert.ToSingle (config ["ballInitialVelocity"]) / 100f;
+		float paddleWidth = Convert.ToSingle (config ["paddleWidth"]) / 24f;
+		float ballSize = Convert.ToSingle (config ["ballSize"]) / 3f;
+		float aiMaxSpeed = Convert.ToSingle(config ["aiMaxSpeed"]) * 10f;
+
+		float aiSpeed = Convert.ToSingle (config ["aiSpeed"]);
+
+
+
+		float playerSpeed = Convert.ToSingle(config ["playerSpeed"]);
+
+
+
 
 		aiPlayer.SetMaxSpeed (aiMaxSpeed);
 		aiPlayer.SeSpeed (aiSpeed);
 		player.SetPlayerSpeed (playerSpeed);
+		ball.SetStartingSpeed (ballInitialSpeed);
+		if (ballSize < 11) {
+			ball.SetStartingScale (ballSize);
+		} else {
+			Debug.LogWarning("Unrealistic ball size: " + ballSize);
+		}
+
+		player.SetPaddleWidth (paddleWidth);
+
+		ResetGameboard ();
 		isInitialised = true;
 	}
-
 
 	public void PauseGame() {
 		isPaused = true;
@@ -111,6 +140,15 @@ public class GameState : MonoBehaviour {
 			isFinished = true;
 		}
 
+		if (isFinished) {
+			UnitySplitForce.SFVariation v = UnitySplitForce.SFManager.Instance.getExperiment("GamePhysics");
+
+			if (v != null) {
+				v.trackTime("Recency");
+				v.endVariation();
+			}
+		}
+
 		ResetGameboard();
 		PauseGame ();
 	}
@@ -119,5 +157,29 @@ public class GameState : MonoBehaviour {
 		player.Reset ();
 		aiPlayer.Reset ();
 		ball.Reset ();
+	}
+
+	void  SplitforceInitialised(bool isFailed, Hashtable additionalData) {
+		if (isFailed) {
+			if (additionalData.ContainsKey("errorMessage")) {
+				Debug.Log("Something wrong: " + additionalData["errorMessage"]);
+			}
+		}
+
+		UnitySplitForce.SFVariation v = UnitySplitForce.SFManager.Instance.initExperiment("GamePhysics");
+
+		float aiSpeed = Convert.ToSingle(config ["aiSpeed"]);
+		float ballInitialVelocity = Convert.ToSingle(config ["ballInitialVelocity"]);
+		float paddleWidth = Convert.ToSingle(config ["paddleWidth"]);
+		float ballSize = Convert.ToSingle(config ["ballSize"]);
+
+		if (v != null) {
+			config["aiSpeed"] = v.VariationData("aiSpeed").DataToFloat(aiSpeed).ToString();
+			config["ballInitialVelocity"] = v.VariationData("ballInitialVelocity").DataToFloat(ballInitialVelocity).ToString();
+			config["paddleWidth"] = v.VariationData("paddleWidth").DataToFloat(paddleWidth).ToString();
+			config["ballSize"] = v.VariationData("ballSize").DataToFloat(ballSize).ToString();
+		}
+
+		InitialiseAssets ();
 	}
 }

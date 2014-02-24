@@ -3,8 +3,9 @@ using System.Collections;
 
 public class BallController : MonoBehaviour {
 
-	[HideInInspector]
-	public float startingSpeed = 10.0F;
+	private float startingSpeed = 10.0F;
+
+	private float ballScale = 1.0f;
 	[HideInInspector]
 	public float acceleration = 1F;
 	[HideInInspector]
@@ -24,6 +25,7 @@ public class BallController : MonoBehaviour {
 
 	public void Reset() {
 		transform.position = initialPosition;
+		transform.localScale = Vector3.one * ballScale;
 		currentAcc = acceleration;
 		rigidbody.velocity = Vector3.right * startingSpeed;
 		AddFuzzyZ ();
@@ -47,5 +49,13 @@ public class BallController : MonoBehaviour {
 			//add some funny randomness
 			rigidbody.velocity = new Vector3(rigidbody.velocity.x, 0, Random.value * 2 - 1);
 		}
+	}
+
+	public void SetStartingSpeed(float newSpeed) {
+		startingSpeed = newSpeed;
+	}
+
+	public void SetStartingScale(float newScale) {
+		ballScale = newScale;
 	}
 }
